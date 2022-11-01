@@ -2,6 +2,7 @@
  * Liam Todd
  * This is the main code file that runs the shell
  * *****************/
+#include "linkedlist.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,10 +13,12 @@
 #include <unistd.h>
 
 void changeDIR(char*);
+void parseInput(struct Linked_List*, char*);
 
 int main() {
 	char* readstr = malloc(2048 * sizeof(char));
 	memset(readstr, '\0', 2048);
+//	struct Linked_List* list = malloc(sizeof(struct Linked_List));
 
 	size_t buffer_size = 2048;
 	size_t bytes_read = -5;			//variables needed for getline command
@@ -25,10 +28,17 @@ int main() {
 		printf(": ");
 		fflush(stdout);
 		bytes_read = getline(&readstr, &buffer_size, stdin);
-	
-		if (strncmp(readstr, "cd", 2) == 0)  
-			changeDIR(readstr);
+
+		struct Linked_List* list = malloc(sizeof(struct Linked_List));
+		parseInput(list, readstr);
+		free_listelements(list);
+		free(list);
+		list = NULL;
 	}
+
+//	free_listelements(list);
+//	free(list);
+//	list = NULL;
 
 	free(readstr);
 	readstr = NULL;				//free dynamic mem
@@ -46,7 +56,6 @@ void changeDIR(char* tempstr) {
 	DIR* directory = opendir(".");
 	
 	char path[100];
-//	printf("pwd: %s\n", getcwd(path, sizeof(path)));
 
 	dirint = chdir(desiredDIR); 
 	if (dirint != 0) {
@@ -54,10 +63,22 @@ void changeDIR(char* tempstr) {
 		fflush(stdout);
 	}
 
-//	printf("pwd: %s\n", getcwd(path, sizeof(path)));
 	closedir(directory);
 
 	desiredDIR -= 3;
 	free(desiredDIR);
 	desiredDIR = NULL;
 }
+
+//this function will parse through the user's input and store each string of chars b/w spaces into a node of a linkedlist
+//then the function will call the corresponding execution (cd, status, or excelvp)
+void parseInput(struct Linked_List* list, char* readstr) {
+	char* token = NULL;
+	char* tknptr = NULL;
+
+	token = strtok_r(readstr, " ", &tknptr);
+	while (token != NULL) {
+		add_back(list, token);
+		token = strtok(readstr, " ", &tknptr);
+	}
+}	
