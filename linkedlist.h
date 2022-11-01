@@ -5,7 +5,6 @@
 #ifndef LINKEDLIST_H
 #define LINKEDlIST_H
 #include "node.h"
-#include "movie.h"
 #include <stdlib.h>
 
 struct Linked_List {
@@ -18,12 +17,8 @@ struct Linked_List* create_linkedlist();
 
 int check_empty(struct node*);
 
-void insert_firstelement(struct Linked_List*, struct movie*);
-void add_back(struct Linked_List*, struct movie*);
-
-int movieLang(struct Linked_List*, struct node*, char*);
-void displayYear(struct Linked_List*, int);
-void displayLang(struct Linked_List*, char*);
+void insert_firstelement(struct Linked_List*, char*);
+void add_back(struct Linked_List*, char*);
 
 void free_listelements(struct Linked_List*);
 #endif
