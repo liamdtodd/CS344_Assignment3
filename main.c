@@ -92,34 +92,49 @@ int parseInput(struct Linked_List* list, char* dataline, int status) {
 
 //this function will fork the processes and then call an exec function to run the user's command
 int callFork(char* dataline, struct Linked_List* list) {
+	int status = -5;
+
 	char* args[list->length];
 	struct node* temp = list->head;
 	int x = 0;
 	while (temp != NULL) {
-		args[x] = temp->readstr;
+		args[x] = malloc((strlen(temp->readstr) + 1) * sizeof(char));
+		strcpy(args[x], temp->readstr);
 		temp = temp->next;
 		x++;
 	}						//storing contents of linkedlist into args[] for execvp() call
+	temp = list->head;
+	x = 0;
 
-	int status = fork();
-	if (status == 0) {				//CHILD PROCESS
+	int PID = fork();
+	switch (PID) {				
 
-		status = execute(args);
-		if (status == -1)
+		case -1: {
 			return -1;
-		return 0;				//a successful exit status won't be returned, b/c of execvp() being called
-	
-	}
+		}					//failed fork()
 
-	else if (status < 0)
-		return -1;
+		case 0: {				//CHILD PROCESS
+//			if (execvp(args[0], args) < 0)
+			execute(args);
+				return -1;		//this line will only run if execute() fails
+		}
+
+		default: {				//PARENT process
+			pid_t parentPID = waitpid(PID, &status, 0);
+		
+			for (x = 0; x < list->length; x++)
+				free(args[x]);
+		
+			return 0;
+		}
+	}
 
 	return 0;					//fork did not fail, exec previously called
 }
 
 //this function will call execvp() and return the status of that call
-int execute(char** args) {
-	if (execvp(*args, args) < 0)
+int execute(char** argv) {
+	if (execvp(*argv, argv) < 0)
 		return -1;
 	return 0;					//this line should not run
 }
