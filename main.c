@@ -12,13 +12,16 @@
 #include <dirent.h>
 #include <unistd.h>
 
+int execute(char**);
+int callFork(char*, struct Linked_List*);
 void changeDIR(char*);
-void parseInput(struct Linked_List*, char*);
+int parseInput(struct Linked_List*, char*, int);
 
 int main() {
 	char* readstr = malloc(2048 * sizeof(char));
 	memset(readstr, '\0', 2048);		//initialize values for readstr
 
+	int status = -5;
 	size_t buffer_size = 2048;
 	size_t bytes_read = -5;			//variables needed for getline command
 
@@ -33,7 +36,7 @@ int main() {
 		list->tail = NULL;
 		list->length = 0;		//initialize linked list
 
-		parseInput(list, readstr);
+		status = parseInput(list, readstr, status);
 
 		free_listelements(list);
 		free(list);
@@ -57,11 +60,15 @@ void changeDIR(char* desiredDIR) {
 
 //this function will parse through the user's input and store each string of chars b/w spaces into a node of a linkedlist
 //then the function will call the corresponding execution (cd, status, or excelvp)
-void parseInput(struct Linked_List* list, char* dataline) {
+int parseInput(struct Linked_List* list, char* dataline, int status) {
 	char* token = NULL;
 	char* tknptr = NULL;
 
 	token = strtok_r(dataline, "\n", &tknptr);	//remove 'enter' so strtok_r can read last string entered by user
+
+	char* line = malloc((strlen(dataline) + 1) * sizeof(char));
+	strcpy(line, dataline);				//save contents of dataline (w/out "\n") for later use
+	
 	token = strtok_r(dataline, " ", &tknptr);	//now tokenize string by spaces
 	while (token != NULL) {
 		add_back(list, token);
@@ -70,4 +77,49 @@ void parseInput(struct Linked_List* list, char* dataline) {
 
 	if (strcmp(list->head->readstr, "cd") == 0)
 		changeDIR(list->head->next->readstr);	//reading first value of linkedlist (has first command from user)
-}	
+	else if (strcmp(list->head->readstr, "#") == 0) {
+		//does nothing
+	}
+	else if (strcmp(list->head->readstr, "status") == 0) {
+		printf("exit status: %d\n", status);
+		fflush(stdout);
+	}
+	else
+		status = callFork(line, list);
+
+	return status;		
+}
+
+//this function will fork the processes and then call an exec function to run the user's command
+int callFork(char* dataline, struct Linked_List* list) {
+	char* args[list->length];
+	struct node* temp = list->head;
+	int x = 0;
+	while (temp != NULL) {
+		args[x] = temp->readstr;
+		temp = temp->next;
+		x++;
+	}						//storing contents of linkedlist into args[] for execvp() call
+
+	int status = fork();
+	if (status == 0) {				//CHILD PROCESS
+
+		status = execute(args);
+		if (status == -1)
+			return -1;
+		return 0;				//a successful exit status won't be returned, b/c of execvp() being called
+	
+	}
+
+	else if (status < 0)
+		return -1;
+
+	return 0;					//fork did not fail, exec previously called
+}
+
+//this function will call execvp() and return the status of that call
+int execute(char** args) {
+	if (execvp(*args, args) < 0)
+		return -1;
+	return 0;					//this line should not run
+}
