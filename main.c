@@ -12,13 +12,12 @@
 #include <dirent.h>
 #include <unistd.h>
 
-void changeDIR(struct Linked_List*);
+void changeDIR(char*);
 void parseInput(struct Linked_List*, char*);
 
 int main() {
 	char* readstr = malloc(2048 * sizeof(char));
-	memset(readstr, '\0', 2048);
-//	struct Linked_List* list = malloc(sizeof(struct Linked_List));
+	memset(readstr, '\0', 2048);		//initialize values for readstr
 
 	size_t buffer_size = 2048;
 	size_t bytes_read = -5;			//variables needed for getline command
@@ -30,15 +29,17 @@ int main() {
 		bytes_read = getline(&readstr, &buffer_size, stdin);
 
 		struct Linked_List* list = malloc(sizeof(struct Linked_List));
+		list->head = NULL;
+		list->tail = NULL;
+		list->length = 0;		//initialize linked list
+
 		parseInput(list, readstr);
+
 		free_listelements(list);
 		free(list);
-		list = NULL;
+		list = NULL;			//free dynamic mem for next line of input
 	}
 
-//	free_listelements(list);
-//	free(list);
-//	list = NULL;
 
 	free(readstr);
 	readstr = NULL;				//free dynamic mem
@@ -46,27 +47,27 @@ int main() {
 }
 
 //this function will change to the desired directory
-void changeDIR(struct Linked_List* list) {
-	struct node* temp = list->head->next;
-
+void changeDIR(char* desiredDIR) {
 	DIR* directory = opendir(".");
-	chdir(temp->readstr);
-	
+
+	chdir(desiredDIR);
+
 	closedir(directory);
 }
 
 //this function will parse through the user's input and store each string of chars b/w spaces into a node of a linkedlist
 //then the function will call the corresponding execution (cd, status, or excelvp)
-void parseInput(struct Linked_List* list, char* readstr) {
+void parseInput(struct Linked_List* list, char* dataline) {
 	char* token = NULL;
 	char* tknptr = NULL;
 
-//	token = strtok_r(readstr, " ", &tknptr);
-	while ((token = strtok_r(readstr, " ", &tknptr)) != NULL) {
+	token = strtok_r(dataline, "\n", &tknptr);	//remove 'enter' so strtok_r can read last string entered by user
+	token = strtok_r(dataline, " ", &tknptr);	//now tokenize string by spaces
+	while (token != NULL) {
 		add_back(list, token);
-		token = strtok_r(readstr, " ", &tknptr);
-	}
+		token = strtok_r(NULL, " ", &tknptr);
+	}						//will loop through entire string until there are no more string vals
 
 	if (strcmp(list->head->readstr, "cd") == 0)
-		changeDIR(list);
+		changeDIR(list->head->next->readstr);	//reading first value of linkedlist (has first command from user)
 }	
