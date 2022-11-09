@@ -12,8 +12,9 @@
 #include <dirent.h>
 #include <unistd.h>
 
-int executelp(char**);
-void file_redirect(char**);
+int locateInIndex(char**, int);
+int locateOutIndex(char**, int);
+void file_redirect(char**, int);
 int execute(char**);
 int callFork(char*, struct Linked_List*);
 void changeDIR(char*);
@@ -119,11 +120,8 @@ int callFork(char* dataline, struct Linked_List* list) {
 		}					//failed fork()
 
 		case 0: {				//CHILD PROCESS
-			if (list->length > 1) {
-				file_redirect(args);
-//				executelp(args);
-//				exit(1);		//this line will only run if executelp() fails, terminates child
-			}
+			if (list->length > 1) 
+				file_redirect(args, list->length);
 
 			execute(args);
 			exit(1);		//this line will only run if execute() fails, terminates child
@@ -153,34 +151,58 @@ int execute(char** argv) {
 
 //this function will check to see if file redirection is being requested and then redirect 
 //file i/o if it was requested
-void file_redirect(char** args) {
+void file_redirect(char** args, int length) {
 	int fd = -5;					//the file descriptor for the file
+	int fd2 = -5;
 	int result = -5;				//used for result of dup2() call
 
-	if (strcmp(args[1], ">") == 0) {
-		fd = open(args[2], O_WRONLY | O_CREAT | O_EXCL, 0644);
+	int outIndex = locateOutIndex(args, length);
+	int inIndex = locateInIndex(args, length);
+	
+	if ((outIndex > 0) && (inIndex < 0)) {
+		fd = open(args[outIndex+1], O_WRONLY | O_CREAT | O_EXCL, 0644);	//create file if not already existing
 		
 		if (fd < 0) 
-			fd = open(args[2], O_WRONLY, 0644);		
+			fd = open(args[outIndex+1], O_WRONLY | O_TRUNC, 0644);	//assumes file previously exists, open file	
 
 		result = dup2(fd, 1);			//change stdout to point to file
 
 		fcntl(fd, F_SETFD, FD_CLOEXEC);
 
-		//if (strcmp(args[0], "ls") == 0) {
-			execlp(args[0], args[0], NULL);
-			exit(1);
-		//}
-	} else
+		if (execlp(args[outIndex-1], args[outIndex-1], NULL) < 0)
+			exit(1);				//this line won't run if execlp is successful
+
+	} else if ((outIndex < 0) && (inIndex > 0)) {
+		fd = open(args[inIndex-1], O_RDONLY | O_CREAT | O_EXCL, 0644);
+		if (fd < 0)
+			fd = open(args[inIndex-1], O_RDONLY, 0644);
+
+		fd2 = open(args[inIndex+1], O_WRONLY | O_CREAT | O_EXCL, 0644);
+		if (fd2 < 0) 
+			fd2 = open(args[inIndex+1], O_WRONLY | O_TRUNC, 0644);
+
+			
+	}
 		return;
 
 }
 
-//this function will call execlp() and return status of that call
-int executelp(char** argv) {
-	printf("%s\n", argv[0]);
-	if (execlp("ls", "ls", NULL) < 0)
-		return 1;
-	return 0;
+//this function will return the index of ">"
+int locateOutIndex(char** args, int length) {
+	for (int x = 1; x < length; x++) {	//x starts at index 1 b/c first arg won't be ">"
+		if (strcmp(args[x], ">") == 0)
+			return x;
+	}
 
+	return -1;					//">" was never found
+}
+
+//this function will return the index of "<"
+int locateInIndex(char** args, int length) {
+	for (int x = 1; x < length; x++) {	//x starts at index 1 b/c first arg won't be "<"
+		if (strcmp(args[x], "<") == 0)
+			return x;
+	}
+	
+	return -1;					//"<" was never found
 }
