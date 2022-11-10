@@ -12,6 +12,8 @@
 #include <dirent.h>
 #include <unistd.h>
 
+void checkDollar(char*);
+int checkComment(struct Linked_List*);
 int locateInIndex(char**, int);
 int locateOutIndex(char**, int);
 void file_redirect(char**, int);
@@ -29,13 +31,13 @@ int main() {
 	size_t bytes_read = -5;			//variables needed for getline command
 
 	while (1) {
-		if (strncmp(readstr, "exit", 4) == 0)
-			exit(0);
-
 		memset(readstr, '\0', 2048);	//reset the readstr for each pass through loop
 		printf(": ");
 		fflush(stdout);
 		bytes_read = getline(&readstr, &buffer_size, stdin);
+
+		if (strncmp(readstr, "exit", 4) == 0)
+			exit(0);
 
 		struct Linked_List* list = malloc(sizeof(struct Linked_List));
 		list->head = NULL;
@@ -64,6 +66,40 @@ void changeDIR(char* desiredDIR) {
 	closedir(directory);
 }
 
+//this function will check to see if the command entered by the user is a comment if yes, ret 0, else ret 2
+int checkComment(struct Linked_List* list) {
+	char* substr = NULL;
+	substr = strstr(list->head->readstr, "#");
+	if (substr != NULL)
+		return 0;			//if substr is NULL, there is no '#' in the command, so it's not a comment
+
+	return 2;
+}
+
+//this function will check to see if there is '$$', if there is, it will replace the index's value with pidstr
+void checkDollar(char* arg) {
+	int thePid = getpid();
+	char noDollar[50];
+	char pidstr[50];
+	memset(noDollar, '\0', 50);
+	memset(pidstr, '\0', 50);
+
+	if (strstr(arg, "$") != NULL) {
+		if (strlen(arg) == 2) {
+			sprintf(pidstr, "%d", thePid);
+			strcpy(arg, pidstr);
+		}
+		else {
+			strncpy(noDollar, arg, strlen(arg) - 2);
+			//printf("pidstr: %s\targs[x]: %s\n", pidstr, arg); fflush(stdout);
+			sprintf(pidstr, "%s%d", noDollar, thePid);
+			//printf("pidstr: %s\t", pidstr); fflush(stdout);
+			strcpy(arg, pidstr);
+	//		printf("arg: %s\tpidstr: %s\tpid: %d\n", arg, pidstr, thePid);
+		}
+	}
+}
+
 //this function will parse through the user's input and store each string of chars b/w spaces into a node of a linkedlist
 //then the function will call the corresponding execution (cd, status, or excelvp)
 int parseInput(struct Linked_List* list, char* dataline, int status) {
@@ -77,21 +113,24 @@ int parseInput(struct Linked_List* list, char* dataline, int status) {
 	
 	token = strtok_r(dataline, " ", &tknptr);	//now tokenize string by spaces
 	while (token != NULL) {
-		add_back(list, token);
+		add_back(list, token);			//make token a node in a linked list
 		token = strtok_r(NULL, " ", &tknptr);
 	}						//will loop through entire string until there are no more string vals
 
 	if (strcmp(list->head->readstr, "cd") == 0)
 		changeDIR(list->head->next->readstr);	//reading first value of linkedlist (has first command from user)
-	else if (strcmp(list->head->readstr, "#") == 0) {
-		return 0;
-	}
+
 	else if (strcmp(list->head->readstr, "status") == 0) {
 		printf("exit status: %d\n", status);
 		fflush(stdout);
 	}
-	else
+	else {
+		status = checkComment(list);
+		if (status == 0)
+			return 0;			//command is a comment, do not fork or exec
+
 		status = callFork(line, list);
+	}
 
 	return status;		
 }
@@ -99,7 +138,7 @@ int parseInput(struct Linked_List* list, char* dataline, int status) {
 //this function will fork the processes and then call an exec function to run the user's command
 int callFork(char* dataline, struct Linked_List* list) {
 	int status = -5;
-
+	char* pidstr = NULL;
 	char* args[list->length];
 	struct node* temp = list->head;
 	int x = 0;
@@ -122,9 +161,14 @@ int callFork(char* dataline, struct Linked_List* list) {
 		case 0: {				//CHILD PROCESS
 			if (list->length > 1) 
 				file_redirect(args, list->length);
+			
+			for (int x = 0; x < list->length; x++)
+				checkDollar(args[x]);
 
 			execute(args);
-			exit(1);		//this line will only run if execute() fails, terminates child
+
+			printf("%s: not a file or directory\n", list->head->readstr); fflush(stdout);
+			exit(1);		//these lines will only run if execute() fails, terminates child
 		}
 
 		default: {				//PARENT process
@@ -152,38 +196,59 @@ int execute(char** argv) {
 //this function will check to see if file redirection is being requested and then redirect 
 //file i/o if it was requested
 void file_redirect(char** args, int length) {
-	int fd = -5;					//the file descriptor for the file
-	int fd2 = -5;
+	int input = -5;					//the file descriptor for the input/read file
+	int output = -5;				//the file descriptor for the output/write file
 	int result = -5;				//used for result of dup2() call
 
 	int outIndex = locateOutIndex(args, length);
 	int inIndex = locateInIndex(args, length);
 	
 	if ((outIndex > 0) && (inIndex < 0)) {
-		fd = open(args[outIndex+1], O_WRONLY | O_CREAT | O_EXCL, 0644);	//create file if not already existing
-		
-		if (fd < 0) 
-			fd = open(args[outIndex+1], O_WRONLY | O_TRUNC, 0644);	//assumes file previously exists, open file	
+	
+		output = open(args[outIndex+1], O_WRONLY | O_CREAT | O_EXCL, 0644);	//create file if not already existing
+		if (output < 0) 
+			output = open(args[outIndex+1], O_WRONLY | O_TRUNC, 0644);	//assumes file previously exists, open file	
 
-		result = dup2(fd, 1);			//change stdout to point to file
+		result = dup2(output, 1);			//change stdout to point to file
 
-		fcntl(fd, F_SETFD, FD_CLOEXEC);
+		fcntl(output, F_SETFD, FD_CLOEXEC);
 
 		if (execlp(args[outIndex-1], args[outIndex-1], NULL) < 0)
 			exit(1);				//this line won't run if execlp is successful
 
 	} else if ((outIndex < 0) && (inIndex > 0)) {
-		fd = open(args[inIndex-1], O_RDONLY | O_CREAT | O_EXCL, 0644);
-		if (fd < 0)
-			fd = open(args[inIndex-1], O_RDONLY, 0644);
 
-		fd2 = open(args[inIndex+1], O_WRONLY | O_CREAT | O_EXCL, 0644);
-		if (fd2 < 0) 
-			fd2 = open(args[inIndex+1], O_WRONLY | O_TRUNC, 0644);
+		input = open(args[inIndex+1], O_RDONLY, 0644);	//file should already exist		
+		if (input < 0)
+			printf("%s: does not exist\n", args[inIndex+1]); fflush(stdout);
 
+		fcntl(input, F_SETFD, FD_CLOEXEC);
+
+		if (execlp(args[inIndex-1], args[inIndex-1], args[inIndex+1], NULL) < 0)
+			exit(1);				//if execlp fails, return with exit status 1
+				
+	} else if ((outIndex > 0) && (inIndex > 0)) {
+
+		if (outIndex > inIndex) {
+			input = open(args[inIndex+1], O_RDONLY, 0644);	//file should already exist
+			if (input < 0)
+				printf("%s: does not exist\n", args[inIndex+1]); fflush(stdout);
+
+			output = open(args[outIndex+1], O_WRONLY | O_CREAT | O_EXCL, 0644);	//file may not exist, create if not existing
+			if (output < 0)
+				output = open(args[outIndex+1], O_WRONLY | O_TRUNC, 0644);
+
+			result = dup2(output, 1);			//set stdout to the 'output' file
+
+			fcntl(input, F_SETFD, FD_CLOEXEC);
+			fcntl(output, F_SETFD, FD_CLOEXEC);
 			
-	}
-		return;
+			if (execlp(args[inIndex-1], args[inIndex-1], args[inIndex+1], args[outIndex+1], NULL) < 0)
+				exit(1);			//if execlp fails, return with exit status 1
+		}
+
+	} else
+		return;						//the case where there is no ">" or "<" in the command
 
 }
 
