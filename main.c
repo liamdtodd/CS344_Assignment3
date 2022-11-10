@@ -11,6 +11,7 @@
 #include <fcntl.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <sys/wait.h>
 
 void checkDollar(char*);
 int checkComment(struct Linked_List*);
@@ -61,7 +62,7 @@ int main() {
 void changeDIR(char* desiredDIR) {
 	DIR* directory = opendir(".");
 
-	chdir(desiredDIR);
+	chdir(desiredDIR);			//changes directory
 
 	closedir(directory);
 }
@@ -174,9 +175,8 @@ int callFork(char* dataline, struct Linked_List* list) {
 
 		default: {				//PARENT process
 			pid_t parentPID = waitpid(PID, &status, 0);
-		
 			for (x = 0; x < list->length; x++)
-				free(args[x]);
+					free(args[x]);
 		
 			if (status != 0)
 				return 1;
