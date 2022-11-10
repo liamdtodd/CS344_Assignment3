@@ -26,4 +26,5 @@ TO RUN:
 	
 ***NOTICE***
 Because of what's been implemented, the script is unable to run to completeion
-(gets hung up on testing the foreground only mode)
+(gets hung up on testing the foreground only mode). Since I haven't implemented
+signals, I ^C to get out of this
