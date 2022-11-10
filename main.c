@@ -86,16 +86,13 @@ void checkDollar(char* arg) {
 
 	if (strstr(arg, "$") != NULL) {
 		if (strlen(arg) == 2) {
-			sprintf(pidstr, "%d", thePid);
+			sprintf(pidstr, "%d", thePid);		//for string = "$$", write pid in place of dollar
 			strcpy(arg, pidstr);
 		}
 		else {
-			strncpy(noDollar, arg, strlen(arg) - 2);
-			//printf("pidstr: %s\targs[x]: %s\n", pidstr, arg); fflush(stdout);
-			sprintf(pidstr, "%s%d", noDollar, thePid);
-			//printf("pidstr: %s\t", pidstr); fflush(stdout);
-			strcpy(arg, pidstr);
-	//		printf("arg: %s\tpidstr: %s\tpid: %d\n", arg, pidstr, thePid);
+			strncpy(noDollar, arg, strlen(arg) - 2);	//copy string minus "$$"
+			sprintf(pidstr, "%s%d", noDollar, thePid);	//append pid to string
+			strcpy(arg, pidstr);				//copy to array's indexed value
 		}
 	}
 }
@@ -117,8 +114,12 @@ int parseInput(struct Linked_List* list, char* dataline, int status) {
 		token = strtok_r(NULL, " ", &tknptr);
 	}						//will loop through entire string until there are no more string vals
 
-	if (strcmp(list->head->readstr, "cd") == 0)
-		changeDIR(list->head->next->readstr);	//reading first value of linkedlist (has first command from user)
+	if (strcmp(list->head->readstr, "cd") == 0) {
+		if (list->length == 1)
+			changeDIR("/nfs/stak/users/toddl/");	//"HOME" env var value
+		else
+			changeDIR(list->head->next->readstr);	//reading first value of linkedlist (has first command from user)
+	}
 
 	else if (strcmp(list->head->readstr, "status") == 0) {
 		printf("exit status: %d\n", status);
